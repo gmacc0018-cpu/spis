@@ -1,0 +1,25 @@
+{
+  "name": "spis-system",
+  "version": "1.0.0",
+  "description": "School Performance Intelligence System (SPIS)",
+  "private": true,
+  "workspaces": [
+    "server",
+    "client",
+    "shared"
+  ],
+  "scripts": {
+    "dev:server": "npm --workspace=server run dev",
+    "dev:client": "npm --workspace=client run dev",
+    "dev": "npm --workspace=server run dev",
+    "build": "npm --workspace=shared run build && npm --workspace=server run build && npm --workspace=client run build",
+    "db:generate": "npx prisma generate",
+    "db:push": "npx prisma db push",
+    "db:seed": "node server/dist/server/src/db/seed.js",
+    "test": "npm --workspace=server test"
+  },
+  "devDependencies": {
+    "prisma": "^6.4.0",
+    "typescript": "^5.8.2"
+  }
+}

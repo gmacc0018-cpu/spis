@@ -1,0 +1,200 @@
+import PDFDocument from 'pdfkit';
+import ExcelJS from 'exceljs';
+import { Response } from 'express';
+
+export class ExportService {
+  /**
+   * Generates a printable PDF student performance and attendance report card
+   */
+  static generateStudentReportCardPdf(
+    res: Response,
+    studentData: {
+      studentName: string;
+      admissionNumber: string;
+      schoolName: string;
+      gradeName: string;
+      sectionName: string;
+      rollNumber: string;
+      academicYear: string;
+      overallAverage: number;
+      attendancePercentage: number;
+      subjects: Array<{
+        subjectName: string;
+        averagePercentage: number;
+        personalBest: number;
+        growthPoints: number | null;
+        masteryLevel: string | null;
+      }>;
+      recentExams: Array<{
+        examName: string;
+        subjectName: string;
+        marksObtained: number | null;
+        maxMarks: number;
+        percentage: number | null;
+        status: string;
+      }>;
+      insights: string[];
+    }
+  ) {
+    const doc = new PDFDocument({ margin: 40, size: 'A4' });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="Report_${studentData.admissionNumber}.pdf"`
+    );
+
+    doc.pipe(res);
+
+    // Header Banner
+    doc.rect(40, 40, 515, 65).fill('#1e293b');
+    doc.fillColor('#ffffff').fontSize(18).text(studentData.schoolName, 55, 52);
+    doc.fontSize(12).fillColor('#94a3b8').text('ACADEMIC PERFORMANCE & INTELLIGENCE REPORT', 55, 75);
+    doc.fontSize(10).fillColor('#cbd5e1').text(`Academic Year: ${studentData.academicYear}`, 420, 55);
+
+    doc.moveDown(4);
+
+    // Student Profile Box
+    doc.rect(40, 115, 515, 60).fill('#f8fafc').stroke('#e2e8f0');
+    doc.fillColor('#0f172a').fontSize(11);
+    doc.text(`Student Name: ${studentData.studentName}`, 55, 125);
+    doc.text(`Admission No: ${studentData.admissionNumber}`, 55, 142);
+    doc.text(`Class & Section: ${studentData.gradeName} - ${studentData.sectionName}`, 250, 125);
+    doc.text(`Roll Number: ${studentData.rollNumber}`, 250, 142);
+    doc.text(`Overall Average: ${studentData.overallAverage}%`, 420, 125);
+    doc.text(`Attendance: ${studentData.attendancePercentage}%`, 420, 142);
+
+    // Subject Performance Summary Table
+    let y = 195;
+    doc.fillColor('#0f172a').fontSize(13).text('Subject Mastery & Growth Summary', 40, y);
+    y += 20;
+
+    // Table Header
+    doc.rect(40, y, 515, 22).fill('#e2e8f0');
+    doc.fillColor('#334155').fontSize(9).font('Helvetica-Bold');
+    doc.text('Subject', 50, y + 6);
+    doc.text('Average', 200, y + 6);
+    doc.text('Personal Best', 280, y + 6);
+    doc.text('Recent Growth', 380, y + 6);
+    doc.text('Mastery Level', 465, y + 6);
+    y += 24;
+
+    doc.font('Helvetica').fontSize(9).fillColor('#1e293b');
+    for (const sub of studentData.subjects) {
+      doc.rect(40, y, 515, 20).fill(y % 40 === 0 ? '#f8fafc' : '#ffffff');
+      doc.fillColor('#1e293b').text(sub.subjectName, 50, y + 5);
+      doc.text(`${sub.averagePercentage}%`, 200, y + 5);
+      doc.text(`${sub.personalBest}%`, 280, y + 5);
+      const growthStr = sub.growthPoints !== null
+        ? (sub.growthPoints > 0 ? `+${sub.growthPoints}%` : `${sub.growthPoints}%`)
+        : 'N/A';
+      doc.text(growthStr, 380, y + 5);
+      doc.text(sub.masteryLevel || 'N/A', 465, y + 5);
+      y += 22;
+    }
+
+    // Recent Assessment Results Table
+    y += 15;
+    doc.fillColor('#0f172a').fontSize(13).font('Helvetica-Bold').text('Recent Examination Breakdown', 40, y);
+    y += 20;
+
+    doc.rect(40, y, 515, 22).fill('#e2e8f0');
+    doc.fillColor('#334155').fontSize(9);
+    doc.text('Examination', 50, y + 6);
+    doc.text('Subject', 200, y + 6);
+    doc.text('Marks Obtained', 330, y + 6);
+    doc.text('Percentage', 440, y + 6);
+    y += 24;
+
+    doc.font('Helvetica').fontSize(9);
+    for (const ex of studentData.recentExams.slice(0, 12)) {
+      doc.rect(40, y, 515, 18).fill(y % 36 === 0 ? '#f8fafc' : '#ffffff');
+      doc.fillColor('#1e293b').text(ex.examName, 50, y + 4);
+      doc.text(ex.subjectName, 200, y + 4);
+      const marksDisplay = ex.status === 'PRESENT' ? `${ex.marksObtained} / ${ex.maxMarks}` : ex.status;
+      doc.text(marksDisplay, 330, y + 4);
+      doc.text(ex.percentage !== null ? `${ex.percentage}%` : 'N/A', 440, y + 4);
+      y += 20;
+    }
+
+    // Educational Guidance and Insights
+    y += 15;
+    doc.rect(40, y, 515, 65).fill('#f1f5f9').stroke('#cbd5e1');
+    doc.fillColor('#1e293b').fontSize(10).font('Helvetica-Bold').text('Academic Recommendations & Teacher Notes:', 50, y + 10);
+    doc.font('Helvetica').fontSize(9).fillColor('#334155');
+    let insightY = y + 26;
+    for (const note of studentData.insights.slice(0, 3)) {
+      doc.text(`• ${note}`, 55, insightY, { width: 480 });
+      insightY += 14;
+    }
+
+    // Footer
+    doc.fontSize(8).fillColor('#94a3b8').text('Generated by School Performance Intelligence System (SPIS) — Confidential Academic Record', 40, 780, { align: 'center' });
+
+    doc.end();
+  }
+
+  /**
+   * Generates Excel (.xlsx) workbook for section performance comparison
+   */
+  static async generateSectionPerformanceExcel(
+    res: Response,
+    sectionName: string,
+    subjects: string[],
+    studentsData: Array<{
+      rollNumber: string;
+      admissionNumber: string;
+      studentName: string;
+      marks: Record<string, number | null>;
+      totalPercentage: number;
+      attendancePct: number;
+    }>
+  ) {
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'SPIS Academic Engine';
+    const sheet = workbook.addWorksheet(`Section ${sectionName}`);
+
+    // Define columns
+    const columns: any[] = [
+      { header: 'Roll No', key: 'rollNumber', width: 10 },
+      { header: 'Admission No', key: 'admissionNumber', width: 15 },
+      { header: 'Student Name', key: 'studentName', width: 25 },
+      ...subjects.map(s => ({ header: s, key: s, width: 14 })),
+      { header: 'Overall %', key: 'totalPercentage', width: 14 },
+      { header: 'Attendance %', key: 'attendancePct', width: 14 }
+    ];
+    sheet.columns = columns;
+
+    // Header styling
+    sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    sheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1E293B' }
+    };
+
+    // Add rows
+    for (const row of studentsData) {
+      sheet.addRow({
+        rollNumber: row.rollNumber,
+        admissionNumber: row.admissionNumber,
+        studentName: row.studentName,
+        ...row.marks,
+        totalPercentage: `${row.totalPercentage}%`,
+        attendancePct: `${row.attendancePct}%`
+      });
+    }
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="Section_${sectionName}_Performance.xlsx"`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  }
+}
